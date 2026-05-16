@@ -2,6 +2,8 @@ import {
     COLLECTIBLE_TILE,
     PLAYER_SPEED,
     JUMP_VELOCITY,
+    DOUBLE_JUMP_VELOCITY,
+    MAX_JUMPS,
     INITIAL_LIVES,
     SCORE_PER_COLLECTIBLE
 } from '../config/constants.js';
@@ -40,7 +42,27 @@ export default class Nivel1Scene extends Phaser.Scene {
 
         this.physics.add.collider(this.player, this.capaSuelo);
 
-        // ── Animaciones (skipIfExists evita error al re-entrar al nivel) ──
+        // ── Doble salto: contador y partículas ──
+        this.jumpsUsed = 0;
+
+        const g = this.make.graphics({ x: 0, y: 0 }, false);
+        g.fillStyle(0xffffff, 1);
+        g.fillCircle(4, 4, 4);
+        g.generateTexture('jumpParticle', 8, 8);
+        g.destroy();
+
+        this.doubleJumpFx = this.add.particles(0, 0, 'jumpParticle', {
+            speed:    { min: 80, max: 160 },
+            angle:    { min: 250, max: 290 },
+            scale:    { start: 1, end: 0 },
+            alpha:    { start: 1, end: 0 },
+            lifespan: 400,
+            quantity: 12,
+            tint:     0x00ffff,
+            emitting: false
+        });
+
+        // ── Animaciones (guard evita error al re-entrar al nivel) ──
         if (!this.anims.exists('idle')) {
             this.anims.create({
                 key: 'idle',
@@ -91,8 +113,15 @@ export default class Nivel1Scene extends Phaser.Scene {
     }
 
     update() {
-        const onGround = this.player.body.blocked.down;
+        const body     = this.player.body;
+        const onGround = body.blocked.down || body.touching.down;
 
+        // Resetear contador de saltos al aterrizar
+        if (onGround) {
+            this.jumpsUsed = 0;
+        }
+
+        // ── Movimiento horizontal ──
         if (this.cursors.left.isDown) {
             this.player.setVelocityX(-PLAYER_SPEED);
             this.player.setFlipX(true);
@@ -108,12 +137,27 @@ export default class Nivel1Scene extends Phaser.Scene {
             if (onGround) this.player.anims.play('idle', true);
         }
 
-        if ((this.cursors.up.isDown || this.spaceKey.isDown) && onGround) {
-            this.player.setVelocityY(JUMP_VELOCITY);
+        // ── Salto (detección por flanco, no por nivel) ──
+        const justJump =
+            Phaser.Input.Keyboard.JustDown(this.cursors.up) ||
+            Phaser.Input.Keyboard.JustDown(this.spaceKey);
+
+        if (justJump && this.jumpsUsed < MAX_JUMPS) {
+            if (this.jumpsUsed === 0) {
+                this.player.setVelocityY(JUMP_VELOCITY);
+            } else {
+                this.player.setVelocityY(DOUBLE_JUMP_VELOCITY);
+                this.emitDoubleJumpFx();
+            }
+            this.jumpsUsed += 1;
             this.player.anims.play('jump', true);
         }
 
         this.checkCollectibleOverlap();
+    }
+
+    emitDoubleJumpFx() {
+        this.doubleJumpFx.emitParticleAt(this.player.x, this.player.y + 30);
     }
 
     loseLife() {
@@ -125,6 +169,7 @@ export default class Nivel1Scene extends Phaser.Scene {
         } else {
             this.player.setVelocity(0, 0);
             this.player.setPosition(100, 460);
+            this.jumpsUsed = 0;
         }
     }
 

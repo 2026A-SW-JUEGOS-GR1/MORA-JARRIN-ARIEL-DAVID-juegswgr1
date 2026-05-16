@@ -20,7 +20,7 @@ export default class UIScene extends Phaser.Scene {
             padding: { x: 12, y: 6 }
         });
 
-        this.add.text(16, 100, '← → mover | ↑/Espacio saltar | M menú', {
+        this.add.text(16, 100, '← → mover | ↑/Espacio: salto (x2 en el aire) | M: menú', {
             fontSize: '14px',
             color: '#ffffff',
             backgroundColor: '#00000099',
