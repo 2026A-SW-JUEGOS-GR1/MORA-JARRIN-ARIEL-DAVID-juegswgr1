@@ -1,6 +1,11 @@
 import { GAME_WIDTH, GAME_HEIGHT, GRAVITY_Y } from './config/constants.js';
-import BootScene from './scenes/BootScene.js';
-import Nivel1Scene from './scenes/Nivel1Scene.js';
+import BootScene     from './scenes/BootScene.js';
+import MenuScene     from './scenes/MenuScene.js';
+import Nivel1Scene   from './scenes/Nivel1Scene.js';
+import Nivel2Scene   from './scenes/Nivel2Scene.js';
+import CreditosScene from './scenes/CreditosScene.js';
+import GameOverScene from './scenes/GameOverScene.js';
+import UIScene       from './scenes/UIScene.js';
 
 const config = {
     type: Phaser.AUTO,
@@ -14,7 +19,7 @@ const config = {
             debug: false
         }
     },
-    scene: [BootScene, Nivel1Scene]
+    scene: [BootScene, MenuScene, Nivel1Scene, Nivel2Scene, CreditosScene, GameOverScene, UIScene]
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config); // eslint-disable-line no-unused-vars

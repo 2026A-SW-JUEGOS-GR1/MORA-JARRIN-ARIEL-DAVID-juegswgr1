@@ -33,7 +33,7 @@
         {
          "columns":18,
          "firstgid":1,
-         "image":"../tilesets/spritesheet-tiles-default.png",
+         "image":"..\/tilesets\/spritesheet-tiles-default.png",
          "imageheight":1169,
          "imagewidth":1169,
          "margin":0,
@@ -46,7 +46,7 @@
         {
          "columns":17,
          "firstgid":325,
-         "image":"../tilesets/spritesheet-tiles-default.png",
+         "image":"..\/tilesets\/spritesheet-tiles-default.png",
          "imageheight":1169,
          "imagewidth":1169,
          "margin":0,

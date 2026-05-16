@@ -1,7 +1,9 @@
 import {
     COLLECTIBLE_TILE,
     PLAYER_SPEED,
-    JUMP_VELOCITY
+    JUMP_VELOCITY,
+    INITIAL_LIVES,
+    SCORE_PER_COLLECTIBLE
 } from '../config/constants.js';
 
 export default class Nivel1Scene extends Phaser.Scene {
@@ -10,6 +12,12 @@ export default class Nivel1Scene extends Phaser.Scene {
     }
 
     create() {
+        // ── Estado inicial ──
+        this.score = 0;
+        this.lives = INITIAL_LIVES;
+        this.registry.events.emit('score-changed', this.score);
+        this.registry.events.emit('lives-changed', this.lives);
+
         // ── Tilemap ──
         this.mapa = this.make.tilemap({ key: 'map-nivel1' });
 
@@ -32,26 +40,32 @@ export default class Nivel1Scene extends Phaser.Scene {
 
         this.physics.add.collider(this.player, this.capaSuelo);
 
-        // ── Animaciones ──
-        this.anims.create({
-            key: 'idle',
-            frames: [{ key: 'nightwing', frame: 0 }],
-            frameRate: 1,
-            repeat: -1
-        });
+        // ── Animaciones (skipIfExists evita error al re-entrar al nivel) ──
+        if (!this.anims.exists('idle')) {
+            this.anims.create({
+                key: 'idle',
+                frames: [{ key: 'nightwing', frame: 0 }],
+                frameRate: 1,
+                repeat: -1
+            });
+        }
 
-        this.anims.create({
-            key: 'walk',
-            frames: this.anims.generateFrameNumbers('nightwing', { start: 0, end: 5 }),
-            frameRate: 10,
-            repeat: -1
-        });
+        if (!this.anims.exists('walk')) {
+            this.anims.create({
+                key: 'walk',
+                frames: this.anims.generateFrameNumbers('nightwing', { start: 0, end: 5 }),
+                frameRate: 10,
+                repeat: -1
+            });
+        }
 
-        this.anims.create({
-            key: 'jump',
-            frames: [{ key: 'nightwing', frame: 3 }],
-            frameRate: 1
-        });
+        if (!this.anims.exists('jump')) {
+            this.anims.create({
+                key: 'jump',
+                frames: [{ key: 'nightwing', frame: 3 }],
+                frameRate: 1
+            });
+        }
 
         // ── Cámara ──
         this.cameras.main.setBounds(0, 0, this.mapa.widthInPixels, this.mapa.heightInPixels);
@@ -61,21 +75,19 @@ export default class Nivel1Scene extends Phaser.Scene {
         this.cursors  = this.input.keyboard.createCursorKeys();
         this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
-        // ── HUD ──
-        this.add.text(16, 16, '← → : mover  |  ↑ / Espacio : saltar', {
-            fontSize: '14px',
-            fill: '#ffffff',
-            backgroundColor: '#00000099',
-            padding: { x: 8, y: 4 }
-        }).setScrollFactor(0);
+        // ── UIScene en paralelo ──
+        this.scene.launch('UIScene');
 
-        this.score     = 0;
-        this.scoreText = this.add.text(16, 48, 'Coleccionables: 0', {
-            fontSize: '16px',
-            fill: '#ffff00',
-            backgroundColor: '#00000099',
-            padding: { x: 8, y: 4 }
-        }).setScrollFactor(0);
+        // ── Tecla M: volver al menú ──
+        this.input.keyboard.on('keydown-M', () => {
+            this.scene.stop('UIScene');
+            this.scene.start('MenuScene');
+        });
+
+        // ── Tecla L: perder vida (test) ──
+        this.input.keyboard.on('keydown-L', () => {
+            this.loseLife();
+        });
     }
 
     update() {
@@ -102,6 +114,23 @@ export default class Nivel1Scene extends Phaser.Scene {
         }
 
         this.checkCollectibleOverlap();
+    }
+
+    loseLife() {
+        this.lives -= 1;
+        this.registry.events.emit('lives-changed', this.lives);
+
+        if (this.lives <= 0) {
+            this.gameOver();
+        } else {
+            this.player.setVelocity(0, 0);
+            this.player.setPosition(100, 460);
+        }
+    }
+
+    gameOver() {
+        this.scene.stop('UIScene');
+        this.scene.start('GameOverScene', { score: this.score, from: 'Nivel1Scene' });
     }
 
     placeRandomTilesAboveBlocks(count = 1, exclude = []) {
@@ -147,8 +176,8 @@ export default class Nivel1Scene extends Phaser.Scene {
 
                 if (tile?.index === COLLECTIBLE_TILE) {
                     this.capaSuelo.removeTileAt(x, y);
-                    this.score += 1;
-                    this.scoreText.setText('Coleccionables: ' + this.score);
+                    this.score += SCORE_PER_COLLECTIBLE;
+                    this.registry.events.emit('score-changed', this.score);
                     this.placeRandomTilesAboveBlocks(1, [{ x, y }]);
                     console.log('[Coleccionable] Tomado en:', { x, y }, '| Total:', this.score);
                     return;
