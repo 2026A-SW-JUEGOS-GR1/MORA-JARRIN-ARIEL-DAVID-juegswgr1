@@ -9,8 +9,13 @@ import {
     DASH_COOLDOWN_MS,
     DASH_TINT,
     INITIAL_LIVES,
-    SCORE_PER_COLLECTIBLE
+    SCORE_PER_COLLECTIBLE,
+    PLAYER_INVULN_MS,
+    PLAYER_KNOCKBACK_X,
+    PLAYER_KNOCKBACK_Y
 } from '../config/constants.js';
+import PatrolEnemy from '../entities/PatrolEnemy.js';
+import ChaserEnemy from '../entities/ChaserEnemy.js';
 
 export default class Nivel1Scene extends Phaser.Scene {
     constructor() {
@@ -19,11 +24,21 @@ export default class Nivel1Scene extends Phaser.Scene {
 
     create() {
         // ── Estado inicial ──
-        this.score = 0;
-        this.lives = INITIAL_LIVES;
+        this.score          = 0;
+        this.lives          = INITIAL_LIVES;
+        this.isInvulnerable = false;
         this.registry.events.emit('score-changed', this.score);
         this.registry.events.emit('lives-changed', this.lives);
         this.registry.events.emit('dash-ready', true);
+
+        // Sumar score cuando un enemigo muere
+        this.registry.events.on('enemy-killed', (points) => {
+            this.score += points;
+            this.registry.events.emit('score-changed', this.score);
+        });
+        this.events.once('shutdown', () => {
+            this.registry.events.off('enemy-killed');
+        });
 
         // ── Tilemap ──
         this.mapa = this.make.tilemap({ key: 'map-nivel1' });
@@ -50,11 +65,13 @@ export default class Nivel1Scene extends Phaser.Scene {
         // ── Doble salto ──
         this.jumpsUsed = 0;
 
-        const g = this.make.graphics({ x: 0, y: 0 }, false);
-        g.fillStyle(0xffffff, 1);
-        g.fillCircle(4, 4, 4);
-        g.generateTexture('jumpParticle', 8, 8);
-        g.destroy();
+        if (!this.textures.exists('jumpParticle')) {
+            const g = this.make.graphics({ x: 0, y: 0 }, false);
+            g.fillStyle(0xffffff, 1);
+            g.fillCircle(4, 4, 4);
+            g.generateTexture('jumpParticle', 8, 8);
+            g.destroy();
+        }
 
         this.doubleJumpFx = this.add.particles(0, 0, 'jumpParticle', {
             speed:    { min: 80, max: 160 },
@@ -71,6 +88,27 @@ export default class Nivel1Scene extends Phaser.Scene {
         this.isDashing   = false;
         this.canDash     = true;
         this.facingRight = true;
+
+        // ── Enemigos ──
+        this.enemies = this.physics.add.group({
+            classType:      Phaser.Physics.Arcade.Sprite,
+            runChildUpdate: false
+        });
+
+        // Patrullero 1 (sobre elevación izquierda, fila 7)
+        const p1 = new PatrolEnemy(this, 380, 424, 280, 488);
+        this.enemies.add(p1);
+
+        // Patrullero 2 (sobre elevación central, fila 8)
+        const p2 = new PatrolEnemy(this, 670, 488, 600, 744);
+        this.enemies.add(p2);
+
+        // Perseguidor (sobre elevación derecha, fila 6)
+        const c1 = new ChaserEnemy(this, 960, 360);
+        this.enemies.add(c1);
+
+        this.physics.add.collider(this.enemies, this.capaSuelo);
+        this.physics.add.overlap(this.player, this.enemies, this.onPlayerHitEnemy, null, this);
 
         // ── Animaciones (guard evita error al re-entrar al nivel) ──
         if (!this.anims.exists('idle')) {
@@ -121,9 +159,14 @@ export default class Nivel1Scene extends Phaser.Scene {
         this.input.keyboard.on('keydown-L', () => {
             this.loseLife();
         });
+
+        // ── Tecla K: matar enemigo más cercano (test) ──
+        this.input.keyboard.on('keydown-K', () => {
+            this.killNearestEnemy();
+        });
     }
 
-    update() {
+    update(time, delta) {
         const body     = this.player.body;
         const onGround = body.blocked.down || body.touching.down;
 
@@ -170,6 +213,11 @@ export default class Nivel1Scene extends Phaser.Scene {
         if (Phaser.Input.Keyboard.JustDown(this.shiftKey) && this.canDash && !this.isDashing) {
             this.startDash();
         }
+
+        // ── AI de enemigos ──
+        this.enemies.children.iterate((enemy) => {
+            if (enemy) enemy.updateAI(this.player, time, delta);
+        });
 
         this.checkCollectibleOverlap();
     }
@@ -223,6 +271,52 @@ export default class Nivel1Scene extends Phaser.Scene {
                 });
             });
         }
+    }
+
+    onPlayerHitEnemy(player, enemy) {
+        if (this.isInvulnerable || enemy.isDead) return;
+
+        const dir = player.x < enemy.x ? -1 : 1;
+        player.setVelocity(PLAYER_KNOCKBACK_X * dir, PLAYER_KNOCKBACK_Y);
+
+        this.takeDamageFromEnemy();
+    }
+
+    takeDamageFromEnemy() {
+        this.lives -= 1;
+        this.registry.events.emit('lives-changed', this.lives);
+
+        if (this.lives <= 0) {
+            this.gameOver();
+            return;
+        }
+
+        this.isInvulnerable = true;
+        this.tweens.add({
+            targets:  this.player,
+            alpha:    0.3,
+            duration: 100,
+            yoyo:     true,
+            repeat:   Math.floor(PLAYER_INVULN_MS / 200) - 1,
+            onComplete: () => {
+                this.player.setAlpha(1);
+                this.isInvulnerable = false;
+            }
+        });
+    }
+
+    killNearestEnemy() {
+        let nearest = null;
+        let minDist = Infinity;
+        this.enemies.children.iterate((enemy) => {
+            if (!enemy || enemy.isDead) return;
+            const d  = Math.hypot(enemy.x - this.player.x, enemy.y - this.player.y);
+            if (d < minDist) {
+                minDist  = d;
+                nearest  = enemy;
+            }
+        });
+        if (nearest) nearest.takeDamage(99);
     }
 
     loseLife() {
