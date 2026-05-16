@@ -20,9 +20,16 @@ export default class UIScene extends Phaser.Scene {
             padding: { x: 12, y: 6 }
         });
 
-        this.add.text(16, 100, '← → mover | ↑/Espacio: salto (x2 en el aire) | M: menú', {
+        this.add.text(16, 100, '← → mover | ↑/Espacio: salto (x2) | Shift: dash | M: menú', {
             fontSize: '14px',
             color: '#ffffff',
+            backgroundColor: '#00000099',
+            padding: { x: 8, y: 4 }
+        });
+
+        this.dashText = this.add.text(16, 130, 'DASH: LISTO', {
+            fontSize: '14px',
+            color: '#66ccff',
             backgroundColor: '#00000099',
             padding: { x: 8, y: 4 }
         });
@@ -37,13 +44,24 @@ export default class UIScene extends Phaser.Scene {
         this.livesHandler = (lives) => {
             this.updateLives(lives);
         };
+        this.dashReadyHandler = (ready) => {
+            if (ready) {
+                this.dashText.setText('DASH: LISTO');
+                this.dashText.setColor('#66ccff');
+            } else {
+                this.dashText.setText('DASH: ⏳');
+                this.dashText.setColor('#888888');
+            }
+        };
 
         reg.on('score-changed', this.scoreHandler);
         reg.on('lives-changed', this.livesHandler);
+        reg.on('dash-ready',    this.dashReadyHandler);
 
         this.events.once('shutdown', () => {
             reg.off('score-changed', this.scoreHandler);
             reg.off('lives-changed', this.livesHandler);
+            reg.off('dash-ready',    this.dashReadyHandler);
         });
     }
 

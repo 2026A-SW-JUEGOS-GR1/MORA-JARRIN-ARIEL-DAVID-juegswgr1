@@ -4,6 +4,10 @@ import {
     JUMP_VELOCITY,
     DOUBLE_JUMP_VELOCITY,
     MAX_JUMPS,
+    DASH_VELOCITY,
+    DASH_DURATION_MS,
+    DASH_COOLDOWN_MS,
+    DASH_TINT,
     INITIAL_LIVES,
     SCORE_PER_COLLECTIBLE
 } from '../config/constants.js';
@@ -19,6 +23,7 @@ export default class Nivel1Scene extends Phaser.Scene {
         this.lives = INITIAL_LIVES;
         this.registry.events.emit('score-changed', this.score);
         this.registry.events.emit('lives-changed', this.lives);
+        this.registry.events.emit('dash-ready', true);
 
         // ── Tilemap ──
         this.mapa = this.make.tilemap({ key: 'map-nivel1' });
@@ -42,7 +47,7 @@ export default class Nivel1Scene extends Phaser.Scene {
 
         this.physics.add.collider(this.player, this.capaSuelo);
 
-        // ── Doble salto: contador y partículas ──
+        // ── Doble salto ──
         this.jumpsUsed = 0;
 
         const g = this.make.graphics({ x: 0, y: 0 }, false);
@@ -61,6 +66,11 @@ export default class Nivel1Scene extends Phaser.Scene {
             tint:     0x00ffff,
             emitting: false
         });
+
+        // ── Dash ──
+        this.isDashing   = false;
+        this.canDash     = true;
+        this.facingRight = true;
 
         // ── Animaciones (guard evita error al re-entrar al nivel) ──
         if (!this.anims.exists('idle')) {
@@ -96,6 +106,7 @@ export default class Nivel1Scene extends Phaser.Scene {
         // ── Controles ──
         this.cursors  = this.input.keyboard.createCursorKeys();
         this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+        this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
 
         // ── UIScene en paralelo ──
         this.scene.launch('UIScene');
@@ -121,23 +132,25 @@ export default class Nivel1Scene extends Phaser.Scene {
             this.jumpsUsed = 0;
         }
 
-        // ── Movimiento horizontal ──
+        // ── Movimiento horizontal (bloqueado durante dash) ──
         if (this.cursors.left.isDown) {
-            this.player.setVelocityX(-PLAYER_SPEED);
+            if (!this.isDashing) this.player.setVelocityX(-PLAYER_SPEED);
+            this.facingRight = false;
             this.player.setFlipX(true);
             if (onGround) this.player.anims.play('walk', true);
 
         } else if (this.cursors.right.isDown) {
-            this.player.setVelocityX(PLAYER_SPEED);
+            if (!this.isDashing) this.player.setVelocityX(PLAYER_SPEED);
+            this.facingRight = true;
             this.player.setFlipX(false);
             if (onGround) this.player.anims.play('walk', true);
 
         } else {
-            this.player.setVelocityX(0);
+            if (!this.isDashing) this.player.setVelocityX(0);
             if (onGround) this.player.anims.play('idle', true);
         }
 
-        // ── Salto (detección por flanco, no por nivel) ──
+        // ── Salto (detección por flanco) ──
         const justJump =
             Phaser.Input.Keyboard.JustDown(this.cursors.up) ||
             Phaser.Input.Keyboard.JustDown(this.spaceKey);
@@ -153,11 +166,63 @@ export default class Nivel1Scene extends Phaser.Scene {
             this.player.anims.play('jump', true);
         }
 
+        // ── Dash ──
+        if (Phaser.Input.Keyboard.JustDown(this.shiftKey) && this.canDash && !this.isDashing) {
+            this.startDash();
+        }
+
         this.checkCollectibleOverlap();
     }
 
     emitDoubleJumpFx() {
         this.doubleJumpFx.emitParticleAt(this.player.x, this.player.y + 30);
+    }
+
+    startDash() {
+        this.isDashing = true;
+        this.canDash   = false;
+        this.registry.events.emit('dash-ready', false);
+
+        const dir = this.facingRight ? 1 : -1;
+        this.player.setVelocityX(DASH_VELOCITY * dir);
+        this.player.setVelocityY(0);
+        this.player.body.setAllowGravity(false);
+        this.player.setTint(DASH_TINT);
+
+        this.spawnAfterimages();
+
+        this.time.delayedCall(DASH_DURATION_MS, () => this.endDash());
+
+        this.time.delayedCall(DASH_COOLDOWN_MS, () => {
+            this.canDash = true;
+            this.registry.events.emit('dash-ready', true);
+        });
+    }
+
+    endDash() {
+        this.isDashing = false;
+        this.player.body.setAllowGravity(true);
+        this.player.clearTint();
+    }
+
+    spawnAfterimages() {
+        const interval = DASH_DURATION_MS / 4;
+        for (let i = 0; i < 4; i++) {
+            this.time.delayedCall(i * interval, () => {
+                if (!this.isDashing) return;
+                const ghost = this.add.sprite(this.player.x, this.player.y, 'nightwing', this.player.frame.name);
+                ghost.setFlipX(this.player.flipX);
+                ghost.setScale(this.player.scaleX, this.player.scaleY);
+                ghost.setTint(DASH_TINT);
+                ghost.setAlpha(0.5);
+                this.tweens.add({
+                    targets:    ghost,
+                    alpha:      0,
+                    duration:   250,
+                    onComplete: () => ghost.destroy()
+                });
+            });
+        }
     }
 
     loseLife() {
@@ -170,6 +235,11 @@ export default class Nivel1Scene extends Phaser.Scene {
             this.player.setVelocity(0, 0);
             this.player.setPosition(100, 460);
             this.jumpsUsed = 0;
+            this.isDashing = false;
+            this.canDash   = true;
+            this.player.body.setAllowGravity(true);
+            this.player.clearTint();
+            this.registry.events.emit('dash-ready', true);
         }
     }
 

@@ -10,3 +10,7 @@ export const GAME_WIDTH             = 1280;
 export const GAME_HEIGHT            = 640;
 export const INITIAL_LIVES          = 3;
 export const SCORE_PER_COLLECTIBLE  = 10;
+export const DASH_VELOCITY          = 600;
+export const DASH_DURATION_MS       = 200;
+export const DASH_COOLDOWN_MS       = 600;
+export const DASH_TINT              = 0x66ccff;
