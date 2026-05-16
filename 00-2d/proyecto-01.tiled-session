@@ -1,8 +1,22 @@
 {
-    "activeFile": "",
+    "activeFile": "mapa.tmj",
     "expandedProjectPaths": [
     ],
     "fileStates": {
+        "": {
+            "scaleInDock": 1
+        },
+        "mapa.tmj": {
+            "scale": 0.75,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 633.3333333333333,
+                "y": 406.6666666666667
+            }
+        },
+        "mapa.tmj#background": {
+            "scaleInDock": 1
+        }
     },
     "last.imagePath": "D:/Documentos Ariel/2027/juegos interactivos/MORA-JARRIN-ARIEL-DAVID-juegswgr1/00-2d",
     "map.height": 10,
@@ -11,13 +25,15 @@
     "map.tileWidth": 64,
     "map.width": 20,
     "openFiles": [
+        "mapa.tmj"
     ],
     "project": "proyecto-01.tiled-project",
     "recentFiles": [
+        "mapa.tmj"
     ],
     "tileset.embedInMap": true,
     "tileset.tileSize": {
-        "height": 64,
-        "width": 64
+        "height": 65,
+        "width": 65
     }
 }
